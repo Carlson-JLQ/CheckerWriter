@@ -23,9 +23,9 @@ class CaseOperator(object):
 
     def move_cases_to_test_pool(self, candidate_cases: list[Case], skipped_cases: list[Case], cases_set_xml_path: str, cases_test_xml_path: str):
         """
-        reset pmd project with test case set to select failed test case
+        reset framework project with test case set to select failed test case
         :param testcase_set_xml_path: test case set
-        :param rule_testcase_xml_filepath_in_pmd_project: test case path in pmd project
+        :param rule_testcase_xml_filepath_in_pmd_project: test case path in framework project
         :return:
         """
         candidate_cases_names = []
@@ -35,6 +35,7 @@ class CaseOperator(object):
         skipped_cases_names = []
         for case in skipped_cases:
             skipped_cases_names.append(case.get_description())
+
         tree = ET.parse(cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
         root = tree.getroot()
         for test_code_elem in root.findall('.//test-code'):
@@ -72,7 +73,7 @@ class CaseOperator(object):
     def select_negative_case(self, cases: list[Case], skipped_cases: list[Case]) -> Case:
         """
         select first negative case
-        :param xml_path: test case path in pmd project
+        :param xml_path: test case path in framework project
         :return: None
         """
         for case in cases:
@@ -84,7 +85,7 @@ class CaseOperator(object):
         """
         select test case with specified name
         :param des: description of test case
-        :param xml_path: test case path in pmd project
+        :param xml_path: test case path in framework project
         :return: None
         """
         xml_file_path = xml_path

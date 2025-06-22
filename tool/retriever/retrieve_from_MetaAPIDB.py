@@ -4,6 +4,9 @@ from transformers import AutoTokenizer, AutoModel
 import torch
 from tool.retriever.retrieve_from_FullAPIDB import get_most_similar_api
 
+with open('../../config.json') as f:
+    config = json.load(f)
+
 def get_data(file_path: str):
     sentences = []
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -17,13 +20,13 @@ def get_data(file_path: str):
 # Database to store embeddings and corresponding sentences
 database = []
 # Load model from HuggingFace Hub
-tokenizer = AutoTokenizer.from_pretrained('semantic_matcher/bge-large-en-v1.5')
-model = AutoModel.from_pretrained('semantic_matcher/bge-large-en-v1.5')
+tokenizer = AutoTokenizer.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
+model = AutoModel.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
 model.eval()
 
 def embedding_sentences():
     database.clear()
-    sentences = get_data("../../../pmd/pmd_db/MetaAPI_DB/PMD_MetaAPI_DB.json")
+    sentences = get_data(config['file_paths']['base_dir'] + config['file_paths']['PMD_MetaAPI_DB'])
     encoded_input = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
     with torch.no_grad():
         model_output = model(**encoded_input)
@@ -33,7 +36,7 @@ def embedding_sentences():
         database.append({'sentence': sent, 'embedding': emb})
 
 def find_op_impl(op_name: str):
-    with open("../../../pmd/pmd_db/MetaAPI_DB/PMD_MetaAPI_DB.json", 'r', encoding='utf-8') as file:
+    with open(config['file_paths']['base_dir'] + config['file_paths']['PMD_MetaAPI_DB'], 'r', encoding='utf-8') as file:
         data = json.load(file)
     for op_info in data:
         if str(op_info["meta_op"]) == op_name:
@@ -53,17 +56,16 @@ def get_most_similar_meta_operation(query: str):
     code = find_op_impl(most_similar_sentence)
     meta_data = {"op_name": most_similar_sentence, "op_impl": code}
     if float(cosine_similarities[most_similar_index].item()) > 0.85:
-        print("logic:", query)
-        print("most similar meta operation:", most_similar_sentence)
-        print("cosine Similarity:", cosine_similarities[most_similar_index].item())
         impl.append(meta_data)
     return impl
 
 def get_impl(query: str, nodes: list):
+    # first compare with MetaAPI_DB
     impl = get_most_similar_meta_operation(query)
     if len(impl) >= 1:
         return impl
     else:
+        # if pass in MetaAPI_DB, then retrieve in FullAPI_DB
         impl = get_most_similar_api(query, nodes)
         if len(impl) >= 1:
             return impl

@@ -17,20 +17,107 @@ from tool.entity.checker import Checker
 from tool.entity.rule import Rule
 
 
+def jar_run(command: list[str], cwd: str):
+    """
+    if the forth parameter is 'checker', it is judging whether the checker code is syntax correct;
+    if the forth parameter is 'tetscase', it is transforming source code of test case into PMD-style AST.
+    :param command:
+    :param cwd:
+    :return:
+    """
+    pwd = os.getcwd()
+    try:
+        if cwd is not None:
+            os.chdir(cwd)
+        check_output(command, stderr=STDOUT, cwd=cwd, shell=True)
+        success = True
+    except CalledProcessError as e:
+        success = False
+    finally:
+        os.chdir(pwd)
+    return success
+
+
+def parse_java_code_from_answer(answer: str):
+    idx = answer.find("```java")
+    if idx == -1:
+        return None
+    else:
+        end_idx = answer.find("}\n```")
+        java_code = answer[idx + 7: end_idx + 1]
+        return java_code
+
+
+def get_logic(logics: str):
+    """
+    extract each textual logic
+    :param logics: 
+    :return: 
+    """
+    logic = []
+    pattern = r'^\d'
+    logics = logics.split("\n")
+    for line in logics:
+        line = line.strip()
+        result = re.match(pattern, line)
+        if result:
+            index = line.find(" ")
+            line = line[index + 1:]
+            logic.append(line)
+    return logic
+
+
+def make_preparation():
+    
+    # embed all textual operations in MetaOp Set
+    embedding_sentences()
+    # clear embedded info of FullAPI DB
+    clear_data()
+
+
+def save_checker(checker: str):
+    """
+    save checker code into txt file, to validate its syntax correctness
+    :param checker:
+    :return:
+    """
+    with open("utils/checker.txt", 'w+', encoding='utf-8') as file:
+        file.write(checker)
+
+
 class CheckerGenerator(object):
-    def __init__(self, url: str, openai_api_key: str, model_name: str, rule: Rule, framework_project: str) -> None:
+    def __init__(self, url: str, openai_api_key: str, model_name: str, rule: Rule, pmd_project: str) -> None:
         self.RULE = rule
         self.ALL_TEST_CASES = []
         self.SKIPPED_TEST_CASES = []
-        self.framework_project_path = framework_project
+        self.PMD_PROJECT_PATH = pmd_project
+
+        tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
+        root = tree.getroot()
+        for test_code_elem in root.findall('.//test-code'):
+            description = test_code_elem.find('description').text
+            code = test_code_elem.find('code').text
+            problem = test_code_elem.find('problem').text
+            if problem == "0":
+                flag = True
+            else:
+                flag = False
+            case = Case(code, description, flag)
+            self.ALL_TEST_CASES.append(case)
 
         self.EMBEDDED_AST_NODES = []
         current_file = os.path.abspath(__file__)
         current_dir = os.path.dirname(current_file)
         self.RELATIVE_PATH = os.path.join(current_dir, "utils")
 
-        self.TEST_ENVIRONMENT = TestChecker(self.framework_project_path)
+        self.TEST_ENVIRONMENT = TestChecker(self.PMD_PROJECT_PATH)
         self.CASE_OPERATOR = CaseOperator()
+        self.MVN_PARSER = MavenOutputParser()
+
+        with open('../../config.json') as f:
+            config = json.load(f)
+        self.FullAPIDB_PATH = config['file_paths']['base_dir'] + config['file_paths']['PMD_FullAPI_DB']
+        
 
         self.MODEL_NAME = model_name
         self.OPENAI_KEY = openai_api_key
@@ -537,16 +624,16 @@ The AST corresponding to this test case(nodes in checker code are better selecte
 {The_AST_corresponding_to_this_test_case}
 Note, when there are consecutive method calls, the last call is at the upper level of the syntax tree.
 
-The checker code pmd(you must conform to):
+The checker code framework(you must conform to):
 ```java
 package {rule_package};
-import net.sourceforge.pmd.lang.java.rule.AbstractJavaRulechainRule;
-import net.sourceforge.pmd.lang.java.ast.*;
-import net.sourceforge.pmd.lang.java.ast.internal.*;
-import net.sourceforge.pmd.lang.java.types.*;
-import net.sourceforge.pmd.lang.java.symbols.*;
-import net.sourceforge.pmd.lang.java.ast.JavaNode;
-import net.sourceforge.pmd.lang.ast.NodeStream;
+import net.sourceforge.framework.lang.java.rule.AbstractJavaRulechainRule;
+import net.sourceforge.framework.lang.java.ast.*;
+import net.sourceforge.framework.lang.java.ast.internal.*;
+import net.sourceforge.framework.lang.java.types.*;
+import net.sourceforge.framework.lang.java.symbols.*;
+import net.sourceforge.framework.lang.java.ast.JavaNode;
+import net.sourceforge.framework.lang.ast.NodeStream;
 import java.util.*;
 import java.lang.*;
 
@@ -576,22 +663,22 @@ Below are some APIs and code snippets consisting of existing APIs, they implemen
 
 Below are some edge-related APIs to help traverse abstract syntax tree, if you need, you can use them:
 
-1. public net.sourceforge.pmd.lang.ast.NodeStream<JavaNode> children()
-2. public net.sourceforge.pmd.lang.ast.NodeStream<JavaNode> children(java.lang.Class)
+1. public net.sourceforge.framework.lang.ast.NodeStream<JavaNode> children()
+2. public net.sourceforge.framework.lang.ast.NodeStream<JavaNode> children(java.lang.Class)
 3. public N getChild(int i)
 4. public N getFirstChild()
 5. public N getLastChild()
 6. public N firstChild(java.lang.Class)
 7. public int getNumChildren()
 8. public int getIndexInParent()
-9. public net.sourceforge.pmd.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendants()
-10. public net.sourceforge.pmd.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendants(java.lang.Class)
-11. public net.sourceforge.pmd.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendantsOrSelf()
+9. public net.sourceforge.framework.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendants()
+10. public net.sourceforge.framework.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendants(java.lang.Class)
+11. public net.sourceforge.framework.lang.ast.NodeStream.DescendantNodeStream<JavaNode> descendantsOrSelf()
 12. public N getParent()
 13. public N getNthParent(int i)
-14. public net.sourceforge.pmd.lang.ast.NodeStream<JavaNode> ancestors()
-15. public net.sourceforge.pmd.lang.ast.NodeStream<JavaNode> ancestors(java.lang.Class)
-16. public net.sourceforge.pmd.lang.ast.NodeStream<JavaNode> ancestorsOrSelf()
+14. public net.sourceforge.framework.lang.ast.NodeStream<JavaNode> ancestors()
+15. public net.sourceforge.framework.lang.ast.NodeStream<JavaNode> ancestors(java.lang.Class)
+16. public net.sourceforge.framework.lang.ast.NodeStream<JavaNode> ancestorsOrSelf()
 17. public N getPreviousSibling()
 18. public N getNextSibling()
 
@@ -678,20 +765,6 @@ Below are some code snippets that maybe useful to you to repair this checker con
 """
         )
 
-
-    def jar_run(self, command: list[str], cwd: str):
-        pwd = os.getcwd()
-        try:
-            if cwd is not None:
-                os.chdir(cwd)
-            check_output(command, stderr=STDOUT, cwd=cwd, shell=True)
-            success = True
-        except CalledProcessError as e:
-            success = False
-        finally:
-            os.chdir(pwd)
-        return success
-
     def run_llm(self, query):
         """
         interact with llm
@@ -705,7 +778,7 @@ Below are some code snippets that maybe useful to you to repair this checker con
 
     def run_logic(self, query, testcase):
         """
-        interact with llm
+        generate checking logics of test case
         :param query:
         :param testcase:
         :return: outputted checking logic of specified test case
@@ -718,15 +791,30 @@ Below are some code snippets that maybe useful to you to repair this checker con
         answer = self.LOGIC_CHAIN.invoke({"input": logic_query}).content
         self.OUTPUT_NUM_TOKENS = self.OUTPUT_NUM_TOKENS + len(self.ENCODING.encode(answer))
         return answer
+            
 
-    def read_AST(self):
-        """
-        get ast info of current test case
-        :return:
-        """
+    def get_ast(self, case: Case):
+
+        # select specified test case, and store it in temporary file(path: utils/selected_case.xml)        
+        tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
+        root = tree.getroot()
+        for test_code_elem in root.findall('.//test-code'):
+            description = root.find('description').text
+            if case.get_description() == description:
+                code_elem = ET.ElementTree(test_code_elem)
+                code_elem.write("utils/selected_case.xml", encoding="utf-8", xml_declaration=True)
+
+        # transform the source code of test case into its framework-style AST, and store it in file(path: utils/selected_case_ast.txt)
+        jar_run([
+            "java -jar PMD-Style-ASTParser.jar testcase selected_case.xml selected_case_ast.txt"],
+            self.RELATIVE_PATH)
+        
+        # read the ast, and extract the nodes on it
         with open("utils/selected_case_ast.txt", 'r', encoding='utf-8') as file:
             content = file.readlines()
         ast = ""
+        nodes_need_to_embed = []
+        ast_nodes = ""
         for line in content:
             if line.startswith("AST"):
                 ast = ast + line
@@ -736,93 +824,64 @@ Below are some code snippets that maybe useful to you to repair this checker con
                 ast = ast + line
             elif line.startswith("<"):
                 matches = re.findall(r'</([^<>]+)>', line)
-                # 使用集合去重
-                nodes = list(set(matches))
-                return ast, nodes
+                # do deduplication
+                ast_nodes = list(set(matches))
 
-    def get_nodes(self, ast: str):
-        """
-        get nodes on ast and all util nodes
-        :param ast:
-        :return:
-        """
-        matches = re.findall(r'</([^<>]+)>', ast)
-        # 使用集合去重
-        result = []
-        unique_matches = list(set(matches))
+        nodes_need_to_embed = ast_nodes
 
-        # 提取所有工具类
-        with open("api_retriever/pmd_DB_info/PMD_FullAPI_DB.json", 'r', encoding='utf-8') as file:
+        # extract all util classes in framework
+        util_classes = []
+        with open(self.FullAPIDB_PATH, 'r', encoding='utf-8') as file:
             data = json.load(file)
         for class_info in data["classes_contained_in_project_detail"]:
             class_name = str(class_info["class_name"])
             if not class_name.startswith("AST") and not class_name == "JavaNode":
-                unique_matches.append(class_name)
-        unique_matches = list(set(unique_matches))
-        for i in unique_matches:
-            result.append(str(i))
-        return result
+                util_classes.append(class_name)
+        util_classes = list(set(util_classes))
+        
+        for i in util_classes:
+            nodes_need_to_embed.append(str(i))
+    
+        return ast, nodes_need_to_embed
 
-    def get_logic(self, logics: str):
-        logic = []
-        pattern = r'^\d'
-        logics = logics.split("\n")
-        for line in logics:
-            line = line.strip()
-            result = re.match(pattern, line)
-            if result:
-                index = line.find(" ")
-                line = line[index + 1:]
-                logic.append(line)
-        return logic
-
-    def parse_java_code_from_answer(self, answer: str):
-        idx = answer.find("```java")
-        if idx == -1:
-            return None
-        else:
-            end_idx = answer.find("}\n```")
-            java_code = answer[idx + 7: end_idx + 1]
-            return java_code
-
-    def get_most_semantic_similar_API_and_snippet(self, logics: str, nodes: list):
+    def get_most_semantic_similar_api_and_snippet(self, logics: str, nodes: list):
         """
-        retrieve APIs with each checking logic in two DBs
+        retrieve API/code snippet with each checking logic in two DBs
         :param logics:
         :param nodes: only consider these nodes when retrieving FullAPI DB
         :return: several API signatures or code snippets
         """
+        
+        # these logic contains id
         logics = logics.strip()
-        logic = self.get_logic(logics)
-        print(logic)
-        print(nodes)
-        API_tips = []
+    
+        logic = get_logic(logics)
+        
+        api_tips = []
         snippet_tips = []
 
         for sentence in logic:
             sentence = sentence.strip()
+            
             meta_impl = get_impl(sentence, nodes)
-
             if len(meta_impl) > 0:
                 for i in meta_impl:
-                    if "\n" in str(i["op_impl"]):  # 表示这是一个代码片段
+                    if "\n" in str(i["op_impl"]):
                         snippet_tips.append(i)
                     else:
-                        API_tips.append(i)
-            else:
-                print("未匹配成功元操作或API")
+                        api_tips.append(i)
 
         unique_API_tips = {}
-        for method in API_tips:
+        for method in api_tips:
             method_impl = method["op_impl"]
             unique_API_tips[method_impl] = method
 
-        API_tips = list(unique_API_tips.values())
-        API_tips_string = ""
+        api_tips = list(unique_API_tips.values())
+        api_tips_string = ""
         f = 1
-        for i in API_tips:
+        for i in api_tips:
             if i is not None:
-                API_tips_string = API_tips_string + str(f) + ". " + i["op_impl"] + "\n"
+                api_tips_string = api_tips_string + str(f) + ". " + i["op_impl"] + "\n"
                 f += 1
 
         unique_snippet_tips = {}
@@ -838,47 +897,28 @@ Below are some code snippets that maybe useful to you to repair this checker con
                 "op_impl"] + "\n"
             f += 1
 
-        return API_tips_string, snippet_stips_string, API_tips, snippet_tips
+        return api_tips_string, snippet_stips_string, api_tips, snippet_tips
 
-    def class_is_correctly_imported(self, checker: str):
-        new_checker = ""
-        content = [line for line in checker.split("\n")]
+    def class_is_correctly_imported(self, checker_code: str):
+        """
+        substitute import info of checker code with default import info
+        :param checker_code: 
+        :return: 
+        """
+        new_checker_code = ""
+        content = [line for line in checker_code.split("\n")]
         for line in content:
             if not line.startswith("import net"):
                 if (line.startswith("public class")):
-                    new_checker += "import net.sourceforge.pmd.lang.java.rule.AbstractJavaRulechainRule;" + "\n"
-                    new_checker += "import net.sourceforge.pmd.lang.java.ast. *;" + "\n"
-                    new_checker += "import net.sourceforge.pmd.lang.java.ast.internal. *;" + "\n"
-                    new_checker += "import net.sourceforge.pmd.lang.java.types. *;" + "\n"
-                    new_checker += "import net.sourceforge.pmd.lang.java.symbols. *;" + "\n"
-                    new_checker += "import net.sourceforge.pmd.lang.ast.NodeStream;" + "\n"
-                new_checker += line + "\n"
-        new_checker = new_checker.strip()
-        return new_checker
-
-    def super_is_correctly_used(self, checker: str):
-        new_checker = ""
-        content = [line for line in checker.split("\n")]
-        for line in content:
-            if "super.addRuleChainVisit" in line:
-                begin_index = line.index("super")
-                end_index = line.index("(")
-                line = line[:begin_index + 5] + line[end_index:]
-            new_checker += line + "\n"
-        new_checker = new_checker.strip()
-        return new_checker
-
-    def name_is_correctly_used(self, checker: str, rule_name: str):
-        new_checker = ""
-        content = [line for line in checker.split("\n")]
-        for line in content:
-            if "public class " in line and "extends" in line:
-                begin_index = line.index("public")
-                end_index = line.index("{")
-                line = line[:begin_index] + rule_name + " " + line[end_index:]
-            new_checker += line + "\n"
-        new_checker = new_checker.strip()
-        return new_checker
+                    new_checker_code += "import net.sourceforge.framework.lang.java.rule.AbstractJavaRulechainRule;" + "\n"
+                    new_checker_code += "import net.sourceforge.framework.lang.java.ast. *;" + "\n"
+                    new_checker_code += "import net.sourceforge.framework.lang.java.ast.internal. *;" + "\n"
+                    new_checker_code += "import net.sourceforge.framework.lang.java.types. *;" + "\n"
+                    new_checker_code += "import net.sourceforge.framework.lang.java.symbols. *;" + "\n"
+                    new_checker_code += "import net.sourceforge.framework.lang.ast.NodeStream;" + "\n"
+                new_checker_code += line + "\n"
+        new_checker_code = new_checker_code.strip()
+        return new_checker_code
 
     def generate_checker_with_query(self, query: str):
         """
@@ -889,7 +929,7 @@ Below are some code snippets that maybe useful to you to repair this checker con
         checker = None
         while checker is None:
             checker = self.run_llm(query)
-            checker = self.parse_java_code_from_answer(checker)
+            checker = parse_java_code_from_answer(checker)
         return checker
 
     def get_error_info(self, output: str):
@@ -898,8 +938,7 @@ Below are some code snippets that maybe useful to you to repair this checker con
         :param output:
         :return: info like API call error or class usage error
         """
-        mvn_parser = MavenOutputParser()
-        parsed_output = mvn_parser.parse(output)
+        parsed_output = self.MVN_PARSER.parse(output)
         error_class = [entry for entry in parsed_output if "notfound_class" in entry]
         error_API = [entry for entry in parsed_output if "notfound_API" in entry]
         error_API_loc = [entry for entry in parsed_output if "notfound_API_location" in entry]
@@ -912,48 +951,13 @@ Below are some code snippets that maybe useful to you to repair this checker con
             error_info = error_info + " 调用的API " + error_API[0]["notfound_API"] + " 不存在"
         return error_info
 
-    def save_checker(self, checker: str):
-        """
-        save checker code into txt, to validate its grammatical correctness
-        :param checker:
-        :return:
-        """
-        with open("utils/checker.txt", 'w+', encoding='utf-8') as file:
-            file.write(checker)
-
-    def get_AST(self, case: Case):
-
-        tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
-        root = tree.getroot()
-        for test_code_elem in root.findall('.//test-code'):
-            description = root.find('description').text
-            if case.get_description() == description:
-                code_elem = ET.ElementTree(test_code_elem)
-                code_elem.write("../utils/selected_case.xml", encoding="utf-8", xml_declaration=True)
-
-        self.jar_run([
-            "java -jar PMD-Style-ASTParser.jar testcase selected_case.xml selected_case_ast.txt"],
-            self.RELATIVE_PATH)
-        ast, ast_nodes = self.read_AST()
-        return ast, ast_nodes
-
-    def make_preparation(self):
-        embedding_sentences()
-        clear_data()
-
-    def checker_generate_with_single_case(self, current_case: Case, current_case_ast: str,
+    def generate_checker_with_single_case(self, current_case: Case, current_case_ast: str,
                                           current_case_ast_nodes: list[str]):
         logics = self.run_logic(self.RULE.text_description, current_case.get_code())
-        api_info = []
-        api_tips_string, snippets_tips_string, api_tips, snippet_tips = self.get_most_semantic_similar_API_and_snippet(
+        
+        api_tips_string, snippets_tips_string, api_tips, snippet_tips = self.get_most_semantic_similar_api_and_snippet(
             logics, current_case_ast_nodes)
-        for unique_API_tip in api_tips:
-            op_impl = str(unique_API_tip["op_impl"])
-            if "//" in str(unique_API_tip["op_impl"]):
-                op_impl = str(unique_API_tip["op_impl"])[:str(unique_API_tip["op_impl"]).find(", //")]
-            api_info.append({"type": "api", "data": op_impl})
-        for unique_snippet_tip in snippet_tips:
-            api_info.append({"type": "meta", "data": str(unique_snippet_tip["op_name"])})
+        
         checker_query = self.CHECKER_PROMPT.format(
             Rule_description=self.RULE.text_description,
             A_test_case=current_case.get_code(),
@@ -965,19 +969,13 @@ Below are some code snippets that maybe useful to you to repair this checker con
         checker_code = self.generate_checker_with_query(checker_query)
         return checker_code
 
-    def checker_generate_with_single_case_and_checker(self, current_case: Case, current_case_ast: str,
+    def generate_checker_with_single_case_and_checker(self, current_case: Case, current_case_ast: str,
                                           current_case_ast_nodes: list[str], checker: str):
         logics = self.run_logic(self.RULE.text_description, current_case.get_code())
-        api_info = []
-        api_tips_string, snippets_tips_string, api_tips, snippet_tips = self.get_most_semantic_similar_API_and_snippet(
+
+        api_tips_string, snippets_tips_string, api_tips, snippet_tips = self.get_most_semantic_similar_api_and_snippet(
             logics, current_case_ast_nodes)
-        for unique_API_tip in api_tips:
-            op_impl = str(unique_API_tip["op_impl"])
-            if "//" in str(unique_API_tip["op_impl"]):
-                op_impl = str(unique_API_tip["op_impl"])[:str(unique_API_tip["op_impl"]).find(", //")]
-            api_info.append({"type": "api", "data": op_impl})
-        for unique_snippet_tip in snippet_tips:
-            api_info.append({"type": "meta", "data": str(unique_snippet_tip["op_name"])})
+
         checker_query = self.CHECKER_PROMPT.format(
             Rule_description=self.RULE.text_description,
             A_test_case=current_case.get_code(),
@@ -988,106 +986,6 @@ Below are some code snippets that maybe useful to you to repair this checker con
         )
         checker_code = self.generate_checker_with_query(checker_query)
         return checker_code
-
-    def checker_generate(self):
-        self.make_preparation()
-        success, init_checker = self.first_checker_generation()
-        if not success:
-            return self.RULE
-        self.RULE.add_checker(init_checker)
-        self.checker_augmentation(init_checker)
-        return self.RULE
-
-    def first_checker_generation(self):
-
-        tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
-        root = tree.getroot()
-        for test_code_elem in root.findall('.//test-code'):
-            description = test_code_elem.find('description').text
-            code = test_code_elem.find('code').text
-            problem = test_code_elem.find('problem').text
-            if problem == "0":
-                flag = True
-            else:
-                flag = False
-            case = Case(code, description, flag)
-            self.ALL_TEST_CASES.append(case)
-
-        total_negative_number = self.CASE_OPERATOR.count_negative_cases(self.ALL_TEST_CASES)
-
-        single_success = False
-        for t in range(1, total_negative_number + 1):
-            current_case = self.CASE_OPERATOR.select_negative_case(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES)
-            current_case_AST, current_case_AST_nodes = self.get_AST(current_case)
-
-            for node in current_case_AST_nodes:
-                self.EMBEDDED_AST_NODES.append(node)
-            embedding_apis(self.EMBEDDED_AST_NODES)
-
-            rounds = 1
-            candidate_testcase = [current_case]
-            self.CASE_OPERATOR.move_cases_to_test_pool(candidate_testcase, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
-            while not single_success:
-                if rounds > 5:
-                    self.SKIPPED_TEST_CASES.append(current_case)
-                    break
-
-                checker_code = self.checker_generate_with_single_case(current_case, current_case_AST, current_case_AST_nodes)
-                self.save_checker(checker_code)
-                syntax_correct = self.jar_run(
-                    [
-                        "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
-                    self.RELATIVE_PATH)
-                if not syntax_correct:
-                    single_success = False
-                else:
-                    rounds += 1
-                    checker_code = self.class_is_correctly_imported(checker_code)
-                    checker_code = self.super_is_correctly_used(checker_code)
-                    checker_code = self.name_is_correctly_used(checker_code, self.RULE.name)
-                    self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_testcase,
-                                         self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
-                    output, compile_success = self.TEST_ENVIRONMENT.run_compile()
-                    i = 1
-                    bak_checker_code = checker_code
-                    bak_output = output
-                    while not compile_success:
-                        error_info = self.get_error_info(output)
-                        repair_query = self.REPAIR_COMPILE_ERROR_PROMPT.format(
-                            Rule_description=self.RULE.text_description,
-                            source_code=checker_code,
-                            failed_info=error_info
-                        )
-                        checker_code = self.generate_checker_with_query(repair_query)
-                        self.save_checker(checker_code)
-                        syntax_correct = self.jar_run(
-                            [
-                                "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
-                            self.RELATIVE_PATH)
-                        if syntax_correct:
-                            checker_code = self.class_is_correctly_imported(checker_code)
-                            checker_code = self.super_is_correctly_used(checker_code)
-                            checker_code = self.name_is_correctly_used(checker_code, self.RULE.name)
-                            self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_testcase, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
-                            output, compile_success = self.TEST_ENVIRONMENT.run_compile()
-                            bak_checker_code = checker_code
-                            bak_output = output
-                        else:
-                            checker_code = bak_checker_code
-                            output = bak_output
-                            compile_success = False
-                        if i > 2 or (i <= 2 and error_info == ""):
-                            compile_success = False
-                            single_success = False
-                            break
-
-                    if compile_success:
-                        single_output, single_success = self.TEST_ENVIRONMENT.run_tests(self.RULE.name + "Test")
-                        if single_success:
-                            init_checker = Checker(checker_code, [current_case])
-                            return single_success, init_checker
-
-        return False, Checker("",[])
 
     def find_failed_case(self, parsed_output: str) -> Case:
         """
@@ -1111,58 +1009,139 @@ Below are some code snippets that maybe useful to you to repair this checker con
             if case.get_description() == error_one:
                 return case
 
+    def checker_generate(self):
+        make_preparation()
+        success, init_checker = self.first_checker_generation()
+        if not success:
+            return self.RULE
+        self.RULE.add_checker(init_checker)
+        self.checker_augmentation(init_checker)
+        return self.RULE
+
+    def first_checker_generation(self):
+
+        total_negative_number = self.CASE_OPERATOR.count_negative_cases(self.ALL_TEST_CASES)
+
+        # we only consider negative test case to do first checker generation
+        single_success = False
+        for t in range(1, total_negative_number + 1):
+            current_case = self.CASE_OPERATOR.select_negative_case(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES)
+            current_case_ast, current_case_ast_nodes = self.get_ast(current_case)
+
+            for node in current_case_ast_nodes:
+                self.EMBEDDED_AST_NODES.append(node)
+            embedding_apis(self.EMBEDDED_AST_NODES)
+
+            rounds = 1
+            candidate_testcase = [current_case]
+            self.CASE_OPERATOR.move_cases_to_test_pool(candidate_testcase, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+            while not single_success:
+                if rounds > 5:
+                    self.SKIPPED_TEST_CASES.append(current_case)
+                    break
+
+                checker_code = self.generate_checker_with_single_case(current_case, current_case_ast, current_case_ast_nodes)
+                save_checker(checker_code)
+
+                # judge whether the syntax of checker code is correct, if wrong, we do new checker generation directly
+                checker_syntax_correct = jar_run(
+                    [
+                        "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
+                    self.RELATIVE_PATH)
+                if not checker_syntax_correct:
+                    single_success = False
+                else:
+                    rounds += 1
+                    checker_code = self.class_is_correctly_imported(checker_code)
+
+                    # now, test pool only contains one test case
+                    self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_testcase,
+                                         self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+                    output, compile_success = self.TEST_ENVIRONMENT.run_compile()
+                    i = 1
+                    bak_checker_code = checker_code
+                    bak_output = output
+                    while not compile_success:
+
+                        if i > 2:
+                            compile_success = False
+                            single_success = False
+                            break
+
+                        error_info = self.get_error_info(output)
+                        repair_query = self.REPAIR_COMPILE_ERROR_PROMPT.format(
+                            Rule_description=self.RULE.text_description,
+                            source_code=checker_code,
+                            failed_info=error_info
+                        )
+                        checker_code = self.generate_checker_with_query(repair_query)
+                        save_checker(checker_code)
+                        syntax_correct = jar_run(
+                            [
+                                "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
+                            self.RELATIVE_PATH)
+                        if syntax_correct:
+                            checker_code = self.class_is_correctly_imported(checker_code)
+                            self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_testcase, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+                            output, compile_success = self.TEST_ENVIRONMENT.run_compile()
+                            bak_checker_code = checker_code
+                            bak_output = output
+                        else:
+                            checker_code = bak_checker_code
+                            output = bak_output
+                            compile_success = False
+
+                        i += 1
+
+                    if compile_success:
+                        single_output, single_success = self.TEST_ENVIRONMENT.run_tests(self.RULE.name + "Test")
+                        if single_success:
+                            init_checker = Checker(checker_code, [current_case])
+                            return single_success, init_checker
+
+        return False, Checker("",[])
+
+
     def checker_augmentation(self, init_checker: Checker):
-
-        test_env = TestChecker(self.framework_project_path)
-        case_operator = CaseOperator()
-
-        tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
-        root = tree.getroot()
-        for test_code_elem in root.findall('.//test-code'):
-            description = test_code_elem.find('description').text
-            code = test_code_elem.find('code').text
-            problem = test_code_elem.find('problem').text
-            if problem == "0":
-                flag = True
-            else:
-                flag = False
-            case = Case(code, description, flag)
-            self.ALL_TEST_CASES.append(case)
 
         passed_cases = init_checker.get_passed_cases()
         checker_code = init_checker.get_code()
 
-        case_operator.move_cases_to_test_pool(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path,
+        # move all test cases expect for skipped ones to test pool
+        self.CASE_OPERATOR.move_cases_to_test_pool(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path,
                                               self.RULE.cases_test_xml_path)
-        all_cases_excluding_skipped_ones_test_output, all_cases_excluding_skipped_ones_test_success = test_env.run_tests(self.RULE.name + "Test")
-        test_round = 0
+        all_cases_excluding_skipped_ones_test_output, all_cases_excluding_skipped_ones_test_success = self.TEST_ENVIRONMENT.run_tests(self.RULE.name + "Test")
         while not all_cases_excluding_skipped_ones_test_success:
-            test_round += 1
-            mvn_parser = MavenOutputParser()
-            parsed_output = mvn_parser.parse(all_cases_excluding_skipped_ones_test_output)
+
+            parsed_output = self.MVN_PARSER.parse(all_cases_excluding_skipped_ones_test_output)
+
+            # find failed case, and augment checker with this case
             current_failed_case = self.find_failed_case(parsed_output)
             candidate_cases = passed_cases
             candidate_cases.append(current_failed_case)
             current_failed_case_description = current_failed_case.get_description()
 
-            current_failed_case_AST, current_failed_case_AST_nodes = self.get_AST(current_failed_case)
-            for node in current_failed_case_AST_nodes:
+            current_failed_case_ast, current_failed_case_ast_nodes = self.get_ast(current_failed_case)
+            for node in current_failed_case_ast_nodes:
                 if node not in self.EMBEDDED_AST_NODES:
                     embedding_apis([node])
 
-            case_operator.move_cases_to_test_pool(candidate_cases, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path,
+            self.CASE_OPERATOR.move_cases_to_test_pool(candidate_cases, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path,
                                                               self.RULE.cases_test_xml_path)
+
             candidate_cases_test_success = False
             rounds=1
             while not candidate_cases_test_success:
+
                 if rounds > 5:
                     self.SKIPPED_TEST_CASES.append(current_failed_case_description)
                     break
 
-                checker_code = self.checker_generate_with_single_case_and_checker(current_failed_case, current_failed_case_AST, current_failed_case_AST_nodes, checker_code)
-                self.save_checker(checker_code)
+                checker_code = self.generate_checker_with_single_case_and_checker(current_failed_case, current_failed_case_ast, current_failed_case_ast_nodes, checker_code)
+                save_checker(checker_code)
 
-                checker_syntax_correct = self.jar_run(
+                # judge whether the syntax of checker code is correct, if wrong, we do new checker generation directly
+                checker_syntax_correct = jar_run(
                     [
                         "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
                     self.RELATIVE_PATH)
@@ -1172,14 +1151,18 @@ Below are some code snippets that maybe useful to you to repair this checker con
                 else:
                     rounds += 1
                     checker_code = self.class_is_correctly_imported(checker_code)
-                    checker_code = self.super_is_correctly_used(checker_code)
-                    checker_code = self.name_is_correctly_used(checker_code, self.RULE.name)
-                    test_env.create_test(self.RULE.checker_test_path, checker_code, candidate_cases, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
-                    checker_compile_output, checker_compile_success = test_env.run_compile()
+                    self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_cases, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+                    checker_compile_output, checker_compile_success = self.TEST_ENVIRONMENT.run_compile()
                     i = 1
                     bak_checker_code = checker_code
                     bak_output = checker_compile_output
                     while not checker_compile_success:
+
+                        if i > 2:
+                            checker_compile_success = False
+                            candidate_cases_test_success = False
+                            break
+
                         error_info = self.get_error_info(checker_compile_output)
                         repair_query = self.REPAIR_COMPILE_ERROR_PROMPT.format(
                             Rule_description=self.RULE.text_description,
@@ -1187,17 +1170,15 @@ Below are some code snippets that maybe useful to you to repair this checker con
                             failed_info=error_info
                         )
                         checker_code = self.generate_checker_with_query(repair_query)
-                        self.save_checker(checker_code)
-                        syntax_correct = self.jar_run(
+                        save_checker(checker_code)
+                        syntax_correct = jar_run(
                             [
                                 "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
                             self.RELATIVE_PATH)
                         if syntax_correct:
                             checker_code = self.class_is_correctly_imported(checker_code)
-                            checker_code = self.super_is_correctly_used(checker_code)
-                            checker_code = self.name_is_correctly_used(checker_code, self.RULE.name)
-                            test_env.create_test(self.RULE.checker_test_path, checker_code, candidate_cases, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
-                            output, compile_success = test_env.run_compile()
+                            self.TEST_ENVIRONMENT.create_test(self.RULE.checker_test_path, checker_code, candidate_cases, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+                            output, compile_success = self.TEST_ENVIRONMENT.run_compile()
                             bak_checker_code = checker_code
                             bak_output = output
                         else:
@@ -1206,21 +1187,16 @@ Below are some code snippets that maybe useful to you to repair this checker con
                             checker_compile_success = False
                         i += 1
 
-                        if i > 2:
-                            checker_compile_success = False
-                            candidate_cases_test_success = False
-                            break
-
                     if checker_compile_success:
-                        candidate_cases_test_output, candidate_cases_test_success = test_env.run_tests(self.RULE.name + "Test")
+                        candidate_cases_test_output, candidate_cases_test_success = self.TEST_ENVIRONMENT.run_tests(self.RULE.name + "Test")
 
             if candidate_cases_test_success:
                 self.RULE.add_checker(Checker(checker_code, candidate_cases))
-                case_operator.move_cases_to_test_pool(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES,
+                self.CASE_OPERATOR.move_cases_to_test_pool(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES,
                                                       self.RULE.cases_set_xml_path,
                                                       self.RULE.cases_test_xml_path)
-                all_cases_excluding_skipped_ones_test_output, all_cases_excluding_skipped_ones_test_success = test_env.run_tests(self.RULE.name + "Test")
-                break
+                all_cases_excluding_skipped_ones_test_output, all_cases_excluding_skipped_ones_test_success = self.TEST_ENVIRONMENT.run_tests(self.RULE.name + "Test")
+                
 
 
 

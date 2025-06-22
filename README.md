@@ -1,6 +1,6 @@
 # AutoChecker
 
-AutoChecker is a tool to automatically generate checker for static analyzers supported by LLM with textual description and test suite inputted.
+AutoChecker is a tool that automatically generates Java checkers for code checking tools with the support of LLM, taking rule text descriptions and rule test cases as input.
 
 **Overview**:
 ![Overview](overview.png)
@@ -11,6 +11,8 @@ AutoChecker is a tool to automatically generate checker for static analyzers sup
 
 ![Logic-guided API-Context Retrieval](retrieval.png)
 
+## What code checking tools can we generate checkers for currently?
+AutoChecker can directly generate Java checkers for PMD, and is applicable to all code checking tools which support Java code checking based on AST traversal after making small adjustments.
 
 ## Tool Playground
 
@@ -19,13 +21,20 @@ We provide a tool demonstration website at https://autochecker.maskeduser.party.
 ## Repository Contents
 
 ### Directory  `tool`  -- Tool Implementation
-+ `Classified_128rules.md` lists PMD's built-in all 128 rules.
-+ `Meta-op Set.xlsx`: The Meta-Op Set that only contains meta-operation natural language description.
-+ `PMD_MetaAPI_DB.json`: Content of MetaAPI DB.
-+ `PMD_FullAPI_DB.json`: Content of FullAPI DB.
-+ `PMD-Style-ASTParser.jar`: The PMD-Style AST parser which is used to parse source code to its AST.
-+ `generator`: The source code of AutoChecker.
 
++ `entity`: It stores data structures of three key entities(rule, test case and checker).
++ `retriever`: It stores semantic matcher and scripts for retrieving.
++ `utils`: It stores some intermediate data and auxiliary scripts.
++ `generator`: The source code of AutoChecker.
++ `main.py`: Entry of AutoChecker.
+
+### Directory  `framework`  -- Something Useful of Code Checking Framework Where You Choose to Write Checker
+Taking PMD framework as an example.
++ `pmd_db`: Content of two DBs(Full-API DB and Meta-API DB) constructed on PMD framework.
++ `pmd_project`: Source code of framework.
++ `PMD-Style-ASTParser.jar`: AST parser in code checking framework.
+
+If you choose other code checking tools to generate checker, this information can also be quickly constructed (refer to our paper).
 
 ### Directory `experiment` -- Experimental Results
 + (Setup) experimental rules: `Experimental_20rules.json`.
@@ -36,6 +45,7 @@ We provide a tool demonstration website at https://autochecker.maskeduser.party.
 + (RQ4) `practice`: Detailed data about RQ4. 
   + Files ended with ".xml": Additionally added test cases in practice.
   + Files ended with ".txt": The augmented checker after iterating those added test cases.
+
 
 ## Detailed experimental results statistics(the best data marked in purple are taken in our paper)
 

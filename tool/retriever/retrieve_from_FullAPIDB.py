@@ -3,6 +3,9 @@ import json
 from transformers import AutoTokenizer, AutoModel
 import torch
 
+with open('../../config.json') as f:
+    config = json.load(f)
+
 def split_camel_case(method_name: str):
     words = []
     start_index = 0
@@ -16,7 +19,7 @@ def split_camel_case(method_name: str):
 
 def get_API(nodes: list):
     i = 0
-    with open("../../../pmd/pmd_db/FullAPI_DB/PMD_FullAPI_DB.json", 'r', encoding='utf-8') as file:
+    with open(config['file_paths']['base_dir'] + config['file_paths']['PMD_FullAPI_DB'], 'r', encoding='utf-8') as file:
         data = json.load(file)
     separator = ' '
     apilist = {}
@@ -67,13 +70,11 @@ def get_API(nodes: list):
                         api_comment = api_name + ": " + str(API_info["method_comment"])
                         apilist[api_comment] = str(class_info["class_name"])
                         i += 1
-    print(i)
-    print(len(apilist))
     return apilist
 
 # Load model from HuggingFace Hub
-tokenizer = AutoTokenizer.from_pretrained('semantic_matcher/bge-large-en-v1.5')
-model = AutoModel.from_pretrained('semantic_matcher/bge-large-en-v1.5')
+tokenizer = AutoTokenizer.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
+model = AutoModel.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
 model.eval()
 
 # Database to store embeddings and corresponding sentences
@@ -106,7 +107,7 @@ def get_most_similar_api(query: str, nodes: list):
     most_similar_index = torch.argmax(cosine_similarities).item()
     most_similar_sentence = part[most_similar_index]['sentence']
     if float(cosine_similarities[most_similar_index].item()) > 0.8:
-        with open("../../../pmd/pmd_db/FullAPI_DB/PMD_FullAPI_DB.json", 'r', encoding='utf-8') as file:
+        with open(config['file_paths']['base_dir'] + config['file_paths']['PMD_FullAPI_DB'], 'r', encoding='utf-8') as file:
             data = json.load(file)
         apis = []
         separator = ' '
@@ -137,9 +138,6 @@ def get_most_similar_api(query: str, nodes: list):
                                 meta_data = {"op_name": most_similar_sentence, "op_impl": str(class_info["class_package"])+": "+api_sig+", //"+str(API_info["method_comment"])}
                             else:
                                 meta_data = {"op_name": most_similar_sentence, "op_impl": str(class_info["class_package"])+": "+api_sig}
-                            print("query: " + query)
-                            print("most similar API: " + most_similar_sentence)
-                            print("cosine Similarity:", cosine_similarities[most_similar_index].item())
                             apis.append(meta_data)
                             return apis
                         if API_info["method_comment"] is not None:
@@ -148,9 +146,6 @@ def get_most_similar_api(query: str, nodes: list):
                                 meta_data = {"op_name": most_similar_sentence,
                                              "op_impl": str(class_info["class_package"]) + ": " + api_sig + ", //" + str(
                                                  API_info["method_comment"])}
-                                print("query: " + query)
-                                print("most similar API: " + most_similar_sentence)
-                                print("cosine Similarity:", cosine_similarities[most_similar_index].item())
                                 apis.append(meta_data)
                                 return apis
                     else:
@@ -169,9 +164,6 @@ def get_most_similar_api(query: str, nodes: list):
                                 meta_data = {"op_name": most_similar_sentence,
                                              "op_impl": str(class_info["class_package"]) + ": " + api_sig}
 
-                            print("query: " + query)
-                            print("most similar API: " + most_similar_sentence)
-                            print("cosine Similarity:", cosine_similarities[most_similar_index].item())
                             apis.append(meta_data)
                             return apis
                         if API_info["method_comment"] is not None:
@@ -181,9 +173,6 @@ def get_most_similar_api(query: str, nodes: list):
                                              "op_impl": str(class_info["class_package"]) + ": " + api_sig + ", //" + str(
                                                  API_info["method_comment"])}
 
-                                print("query: " + query)
-                                print("most similar API: " + most_similar_sentence)
-                                print("cosine Similarity:", cosine_similarities[most_similar_index].item())
                                 apis.append(meta_data)
                                 return apis
     return []
