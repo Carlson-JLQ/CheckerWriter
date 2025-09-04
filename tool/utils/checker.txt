@@ -1,0 +1,19 @@
+
+package net.sourceforge.pmd.lang.java.rule.errorprone;
+
+import net.sourceforge.pmd.lang.java.rule.AbstractJavaRulechainRule;
+import net.sourceforge.pmd.lang.java.ast.ASTNumericLiteral;
+
+public class AvoidUsingOctalValuesRule extends AbstractJavaRulechainRule {
+    public AvoidUsingOctalValuesRule() {
+        super(ASTNumericLiteral.class);
+    }
+    
+    @Override
+    public Object visit(ASTNumericLiteral node, Object data) {
+        if (node.isIntegerLiteral() && node.getBase() == 8) {
+            addViolation(data, node);
+        }
+        return data;
+    }
+}

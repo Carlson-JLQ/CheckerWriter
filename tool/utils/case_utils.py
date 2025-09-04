@@ -1,9 +1,9 @@
 
 import xml.etree.ElementTree as ET
 
-from tool.entity.case import Case
+from entity.case import Case
 
-
+#对测试用例进行增删改查等操作
 class CaseOperator(object):
 
     def delete_failed_testcases_from_cases_set(self, test_case: str, testcase_set_xml_path: str):

@@ -1,11 +1,13 @@
-/**
- * BSD-style license; for more info see http://pmd.sourceforge.net/license.html
- */
+<test-data>
 
-package net.sourceforge.pmd.lang.java.rule.errorprone;
+    <test-code>
+        <description>bad 2</description>
+        <expected-problems>1</expected-problems>
+        <code>
+// bad, 012L
+public class Foo {
+    long x = 012L;
+}</code>
+    </test-code>
 
-import net.sourceforge.pmd.testframework.PmdRuleTst;
-
-class AvoidUsingOctalValuesTest extends PmdRuleTst {
-    // no additional unit tests
-}
+    </test-data>

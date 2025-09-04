@@ -1,6 +1,6 @@
-from tool.entity.checker import Checker
+from entity.checker import Checker
 
-
+# from tool.entity.checker import Checker
 class Rule:
     def __init__(self, name: str, text_description: str, checker_test_path: str, cases_set_xml_path: str, cases_test_xml_path: str):
         self.name = name
@@ -13,4 +13,4 @@ class Rule:
 
     def add_checker(self, checker: Checker):
         self.checker.append(checker)
-
+    

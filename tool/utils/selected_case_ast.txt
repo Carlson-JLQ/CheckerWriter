@@ -1,0 +1,15 @@
+输出为树形结构
+ASTCompilationUnit
+——ASTClassOrInterfaceDeclaration (class name = 'Foo')
+  ——ASTModifierList
+  ——ASTClassOrInterfaceBody
+    ——ASTFieldDeclaration
+      ——ASTModifierList
+      ——ASTPrimitiveType (this is a primitive type)
+      ——ASTVariableDeclarator
+        ——ASTVariableDeclaratorId (declared variable name = 'x')
+        ——ASTNumericLiteral
+
+
+输出为xml结构
+<ASTCompilationUnit><ASTClassOrInterfaceDeclaration><ASTModifierList></ASTModifierList><ASTClassOrInterfaceBody><ASTFieldDeclaration><ASTModifierList></ASTModifierList><ASTPrimitiveType></ASTPrimitiveType><ASTVariableDeclarator><ASTVariableDeclaratorId></ASTVariableDeclaratorId><ASTNumericLiteral></ASTNumericLiteral></ASTVariableDeclarator></ASTFieldDeclaration></ASTClassOrInterfaceBody></ASTClassOrInterfaceDeclaration></ASTCompilationUnit>

@@ -2,9 +2,9 @@
 import json
 from transformers import AutoTokenizer, AutoModel
 import torch
-from tool.retriever.retrieve_from_FullAPIDB import get_most_similar_api
+from retriever.retrieve_from_FullAPIDB import get_most_similar_api
 
-with open('../../config.json') as f:
+with open('config.json') as f:
     config = json.load(f)
 
 def get_data(file_path: str):
@@ -24,13 +24,21 @@ tokenizer = AutoTokenizer.from_pretrained(config['file_paths']['base_dir'] + con
 model = AutoModel.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
 model.eval()
 
+# Function to embed sentences and store in the database
 def embedding_sentences():
     database.clear()
     sentences = get_data(config['file_paths']['base_dir'] + config['file_paths']['PMD_MetaAPI_DB'])
     encoded_input = tokenizer(sentences, padding=True, truncation=True, return_tensors='pt')
     with torch.no_grad():
         model_output = model(**encoded_input)
+    # Use the first token's output as the sentence embedding
+    # This is a common practice for models like BERT, where the first token (CLS token) is used for classification tasks
+    # and can be interpreted as a sentence-level embedding.
+    #提取第一个维度的第一个元素的所有行的第 0 列
         sentence_embeddings = model_output[0][:, 0]
+    # Normalize the embeddings to unit length
+    # Normalization is often done to ensure that the cosine similarity can be computed effectively.
+    # It scales the embeddings to have a unit norm, which is useful for comparing similarity.
     sentence_embeddings = torch.nn.functional.normalize(sentence_embeddings, p=2, dim=1)
     for sent, emb in zip(sentences, sentence_embeddings):
         database.append({'sentence': sent, 'embedding': emb})

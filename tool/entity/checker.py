@@ -1,8 +1,8 @@
-from tool.entity.case import Case
-
-
+# from tool.entity.case import Case
+from typing import List, Optional
+from entity.case import Case
 class Checker:
-    def __init__(self, code: str, passed_cases: list[Case] = None):
+    def __init__(self, code: str, passed_cases: List[Case] = None):
         """
         init a checker
         :param code:

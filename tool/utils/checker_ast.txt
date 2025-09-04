@@ -1,0 +1,56 @@
+输出为树形结构
+ASTCompilationUnit
+——ASTPackageDeclaration
+  ——ASTModifierList
+——ASTImportDeclaration
+——ASTImportDeclaration
+——ASTClassOrInterfaceDeclaration (class name = 'AvoidUsingOctalValuesRule')
+  ——ASTModifierList
+  ——ASTExtendsList
+    ——ASTClassOrInterfaceType (this is a class type)
+  ——ASTClassOrInterfaceBody
+    ——ASTConstructorDeclaration
+      ——ASTModifierList
+      ——ASTFormalParameters (size = 0)
+      ——ASTBlock
+        ——ASTExplicitConstructorInvocation
+          ——ASTArgumentList (size = 1)
+            ——ASTClassLiteral
+              ——ASTClassOrInterfaceType (this is a class type)
+    ——ASTMethodDeclaration (method name = 'visit')
+      ——ASTModifierList
+        ——ASTAnnotation
+          ——ASTClassOrInterfaceType (this is a class type)
+      ——ASTClassOrInterfaceType (method return type = 'Object')
+      ——ASTFormalParameters (size = 2)
+        ——ASTFormalParameter
+          ——ASTModifierList
+          ——ASTClassOrInterfaceType (this is a class type)
+          ——ASTVariableDeclaratorId (declared variable name = 'node')
+        ——ASTFormalParameter
+          ——ASTModifierList
+          ——ASTClassOrInterfaceType (this is a class type)
+          ——ASTVariableDeclaratorId (declared variable name = 'data')
+      ——ASTBlock
+        ——ASTIfStatement
+          ——ASTInfixExpression
+            ——ASTMethodCall (called method name = 'isIntegerLiteral')
+              ——ASTVariableAccess (referenced variable name = 'node')
+              ——ASTArgumentList (size = 0)
+            ——ASTInfixExpression
+              ——ASTMethodCall (called method name = 'getBase')
+                ——ASTVariableAccess (referenced variable name = 'node')
+                ——ASTArgumentList (size = 0)
+              ——ASTNumericLiteral
+          ——ASTBlock
+            ——ASTExpressionStatement
+              ——ASTMethodCall (called method name = 'addViolation')
+                ——ASTArgumentList (size = 2)
+                  ——ASTVariableAccess (referenced variable name = 'data')
+                  ——ASTVariableAccess (referenced variable name = 'node')
+        ——ASTReturnStatement
+          ——ASTVariableAccess (referenced variable name = 'data')
+
+
+输出为xml结构
+<ASTCompilationUnit><ASTPackageDeclaration><ASTModifierList></ASTModifierList></ASTPackageDeclaration><ASTImportDeclaration></ASTImportDeclaration><ASTImportDeclaration></ASTImportDeclaration><ASTClassOrInterfaceDeclaration><ASTModifierList></ASTModifierList><ASTExtendsList><ASTClassOrInterfaceType></ASTClassOrInterfaceType></ASTExtendsList><ASTClassOrInterfaceBody><ASTConstructorDeclaration><ASTModifierList></ASTModifierList><ASTFormalParameters></ASTFormalParameters><ASTBlock><ASTExplicitConstructorInvocation><ASTArgumentList><ASTClassLiteral><ASTClassOrInterfaceType></ASTClassOrInterfaceType></ASTClassLiteral></ASTArgumentList></ASTExplicitConstructorInvocation></ASTBlock></ASTConstructorDeclaration><ASTMethodDeclaration><ASTModifierList><ASTAnnotation><ASTClassOrInterfaceType></ASTClassOrInterfaceType></ASTAnnotation></ASTModifierList><ASTClassOrInterfaceType></ASTClassOrInterfaceType><ASTFormalParameters><ASTFormalParameter><ASTModifierList></ASTModifierList><ASTClassOrInterfaceType></ASTClassOrInterfaceType><ASTVariableDeclaratorId></ASTVariableDeclaratorId></ASTFormalParameter><ASTFormalParameter><ASTModifierList></ASTModifierList><ASTClassOrInterfaceType></ASTClassOrInterfaceType><ASTVariableDeclaratorId></ASTVariableDeclaratorId></ASTFormalParameter></ASTFormalParameters><ASTBlock><ASTIfStatement><ASTInfixExpression><ASTMethodCall><ASTVariableAccess></ASTVariableAccess><ASTArgumentList></ASTArgumentList></ASTMethodCall><ASTInfixExpression><ASTMethodCall><ASTVariableAccess></ASTVariableAccess><ASTArgumentList></ASTArgumentList></ASTMethodCall><ASTNumericLiteral></ASTNumericLiteral></ASTInfixExpression></ASTInfixExpression><ASTBlock><ASTExpressionStatement><ASTMethodCall><ASTArgumentList><ASTVariableAccess></ASTVariableAccess><ASTVariableAccess></ASTVariableAccess></ASTArgumentList></ASTMethodCall></ASTExpressionStatement></ASTBlock></ASTIfStatement><ASTReturnStatement><ASTVariableAccess></ASTVariableAccess></ASTReturnStatement></ASTBlock></ASTMethodDeclaration></ASTClassOrInterfaceBody></ASTClassOrInterfaceDeclaration></ASTCompilationUnit>

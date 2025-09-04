@@ -1,7 +1,7 @@
 import os
 from subprocess import check_output, CalledProcessError, STDOUT
 import xml.etree.ElementTree as ET
-from tool.entity.case import Case
+from entity.case import Case
 
 class TestChecker(object):
     def __init__(self, framework_project_path: str) -> None:
@@ -18,7 +18,7 @@ class TestChecker(object):
         root = tree.getroot()
         candidate_cases_name = []
         for case in candidate_cases:
-            candidate_cases_name.append(case.get_text_description())
+            candidate_cases_name.append(case.get_description())
         for test_code_elem in root.findall('.//test-code'):
             problem = test_code_elem.find('description').text
             if problem not in candidate_cases_name:

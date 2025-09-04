@@ -3,7 +3,7 @@ import json
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-with open('../../config.json') as f:
+with open('config.json') as f:
     config = json.load(f)
 
 def split_camel_case(method_name: str):
@@ -74,13 +74,16 @@ def get_API(nodes: list):
 
 # Load model from HuggingFace Hub
 tokenizer = AutoTokenizer.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
-model = AutoModel.from_pretrained(config['file_paths']['base_dir'] + config['file_paths']['retriever'])
+model_path = config['file_paths']['base_dir'] + config['file_paths']['retriever']
+print("Loading model from:", model_path)
+model = AutoModel.from_pretrained(model_path)
 model.eval()
 
 # Database to store embeddings and corresponding sentences
 database = []
 
 def embedding_apis(embedded_AST_nodes : list[str]):
+    #根据节点获取相应的API
     sentences = get_API(embedded_AST_nodes)
     encoded_input = tokenizer(list(sentences.keys()), padding=True, truncation=True, return_tensors='pt')
     with torch.no_grad():

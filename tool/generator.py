@@ -4,17 +4,17 @@ import re
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
-from tool.retriever.retrieve_from_FullAPIDB import embedding_apis, clear_data
-from tool.retriever.retrieve_from_MetaAPIDB import embedding_sentences, get_impl
-from tool.utils.log_parser import MavenOutputParser
-from tool.utils.case_utils import CaseOperator
-from tool.utils.checker_test import TestChecker
+from retriever.retrieve_from_FullAPIDB import embedding_apis, clear_data
+from retriever.retrieve_from_MetaAPIDB import embedding_sentences, get_impl
+from utils.log_parser import MavenOutputParser
+from utils.case_utils import CaseOperator
+from utils.checker_test import TestChecker
 import tiktoken
 import xml.etree.ElementTree as ET
 from subprocess import check_output, CalledProcessError, STDOUT
-from tool.entity.case import Case
-from tool.entity.checker import Checker
-from tool.entity.rule import Rule
+from entity.case import Case
+from entity.checker import Checker
+from entity.rule import Rule
 
 
 def jar_run(command: list[str], cwd: str):
@@ -81,7 +81,7 @@ def save_checker(checker: str):
     :param checker:
     :return:
     """
-    with open("utils/checker.txt", 'w+', encoding='utf-8') as file:
+    with open("tool/utils/checker.txt", 'w+', encoding='utf-8') as file:
         file.write(checker)
 
 
@@ -91,13 +91,14 @@ class CheckerGenerator(object):
         self.ALL_TEST_CASES = []
         self.SKIPPED_TEST_CASES = []
         self.PMD_PROJECT_PATH = pmd_project
-
+        ##cases_set_xml_path规则的测试用例XML文件路径：experiment/experimental-20rules-test-suite/easy/AvoidUsingOctalValues.xml
         tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
         root = tree.getroot()
         for test_code_elem in root.findall('.//test-code'):
             description = test_code_elem.find('description').text
             code = test_code_elem.find('code').text
-            problem = test_code_elem.find('problem').text
+            # problem = test_code_elem.find('problem').text
+            problem = test_code_elem.find('expected-problems').text
             if problem == "0":
                 flag = True
             else:
@@ -114,7 +115,7 @@ class CheckerGenerator(object):
         self.CASE_OPERATOR = CaseOperator()
         self.MVN_PARSER = MavenOutputParser()
 
-        with open('../../config.json') as f:
+        with open('config.json') as f:
             config = json.load(f)
         self.FullAPIDB_PATH = config['file_paths']['base_dir'] + config['file_paths']['PMD_FullAPI_DB']
         
@@ -586,6 +587,7 @@ test case:
 ```
         """
         )
+        #如果上述代码片段用于检查器，请确认参数类型是否正确传递，并且代码片段主体未被更改。如果已更改，请替换为原始代码片段。注意，保持检查器的原始逻辑。最后，将完整的检查器代码返回给我。
         self.REPAIR_CODE_SNIPPET_PROMPT = PromptTemplate(
             input_variables=["code", "code_snippet"],
             template=
@@ -797,12 +799,13 @@ Below are some code snippets that maybe useful to you to repair this checker con
 
         # select specified test case, and store it in temporary file(path: utils/selected_case.xml)        
         tree = ET.parse(self.RULE.cases_set_xml_path, parser=ET.XMLParser(encoding="utf-8"))
+        print(f"Parsing XML file: {self.RULE.cases_set_xml_path}")
         root = tree.getroot()
         for test_code_elem in root.findall('.//test-code'):
-            description = root.find('description').text
+            description = test_code_elem.find('description').text
             if case.get_description() == description:
                 code_elem = ET.ElementTree(test_code_elem)
-                code_elem.write("utils/selected_case.xml", encoding="utf-8", xml_declaration=True)
+                code_elem.write("tool/utils/selected_case.xml", encoding="utf-8", xml_declaration=True)
 
         # transform the source code of test case into its framework-style AST, and store it in file(path: utils/selected_case_ast.txt)
         jar_run([
@@ -810,7 +813,7 @@ Below are some code snippets that maybe useful to you to repair this checker con
             self.RELATIVE_PATH)
         
         # read the ast, and extract the nodes on it
-        with open("utils/selected_case_ast.txt", 'r', encoding='utf-8') as file:
+        with open("tool/utils/selected_case_ast.txt", 'r', encoding='utf-8') as file:
             content = file.readlines()
         ast = ""
         nodes_need_to_embed = []
@@ -959,12 +962,13 @@ Below are some code snippets that maybe useful to you to repair this checker con
             logics, current_case_ast_nodes)
         
         checker_query = self.CHECKER_PROMPT.format(
-            Rule_description=self.RULE.text_description,
+            Rule_description= self.RULE.text_description,
             A_test_case=current_case.get_code(),
             The_AST_corresponding_to_this_test_case=current_case_ast,
             rule_package=self.RULE.checker_test_path,
             rule_name=self.RULE.name,
-            related_APIinfo=api_tips_string + "\n" + snippets_tips_string
+            related_APIinfo=api_tips_string + "\n" + snippets_tips_string,
+            avoid_error_API=""
         )
         checker_code = self.generate_checker_with_query(checker_query)
         return checker_code
@@ -982,7 +986,8 @@ Below are some code snippets that maybe useful to you to repair this checker con
             The_AST_corresponding_to_this_test_case=current_case_ast,
             rule_package=self.RULE.checker_test_path,
             rule_name=self.RULE.name,
-            related_APIinfo=api_tips_string + "\n" + snippets_tips_string
+            related_APIinfo=api_tips_string + "\n" + snippets_tips_string,
+            avoid_error_API=""
         )
         checker_code = self.generate_checker_with_query(checker_query)
         return checker_code
@@ -1019,28 +1024,36 @@ Below are some code snippets that maybe useful to you to repair this checker con
         return self.RULE
 
     def first_checker_generation(self):
-
+        #计算flag=0的测试用例数量，也就是负例
         total_negative_number = self.CASE_OPERATOR.count_negative_cases(self.ALL_TEST_CASES)
 
         # we only consider negative test case to do first checker generation
         single_success = False
         for t in range(1, total_negative_number + 1):
+            # select a negative test case
+            #ALL_TEST_CASES 是测试用例集合：experiment/experimental-20rules-test-suite/easy/AvoidUsingOctalValues.xml
             current_case = self.CASE_OPERATOR.select_negative_case(self.ALL_TEST_CASES, self.SKIPPED_TEST_CASES)
+            #把当前的case获取其ast，这是一个字符串
+            #输入当前case获取其中的ast节点，这是一个list
             current_case_ast, current_case_ast_nodes = self.get_ast(current_case)
 
             for node in current_case_ast_nodes:
                 self.EMBEDDED_AST_NODES.append(node)
+            # 获取嵌入
             embedding_apis(self.EMBEDDED_AST_NODES)
 
             rounds = 1
             candidate_testcase = [current_case]
+            #把这个case放入测试池中，测试池就是cases_test_xml_path
             self.CASE_OPERATOR.move_cases_to_test_pool(candidate_testcase, self.SKIPPED_TEST_CASES, self.RULE.cases_set_xml_path, self.RULE.cases_test_xml_path)
+            print(f"cases_test_xml_path: {self.RULE.cases_test_xml_path}")
             while not single_success:
                 if rounds > 5:
                     self.SKIPPED_TEST_CASES.append(current_case)
                     break
 
                 checker_code = self.generate_checker_with_single_case(current_case, current_case_ast, current_case_ast_nodes)
+                #保存生成的checker代码tool/utils/checker.txt
                 save_checker(checker_code)
 
                 # judge whether the syntax of checker code is correct, if wrong, we do new checker generation directly
@@ -1048,10 +1061,13 @@ Below are some code snippets that maybe useful to you to repair this checker con
                     [
                         "java -jar PMD-Style-ASTParser.jar checker checker.txt checker_ast.txt"],
                     self.RELATIVE_PATH)
+                #如果语法不正确，checker_syntax_correct为False
                 if not checker_syntax_correct:
                     single_success = False
                 else:
+                    #语法正确的情况下
                     rounds += 1
+                    #检查import是否正确
                     checker_code = self.class_is_correctly_imported(checker_code)
 
                     # now, test pool only contains one test case
